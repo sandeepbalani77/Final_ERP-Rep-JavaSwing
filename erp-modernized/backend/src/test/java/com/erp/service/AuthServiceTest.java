@@ -42,7 +42,6 @@ class AuthServiceTest {
         user.setPassword("password123");
 
         when(userRepository.findById("admin")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("password123", "password123")).thenReturn(false);
         when(jwtUtil.generateToken("admin")).thenReturn("jwt-token");
 
         LoginRequest request = new LoginRequest("admin", "password123");
@@ -69,15 +68,31 @@ class AuthServiceTest {
     }
 
     @Test
+    void login_bcryptHash_asPassword_isRejected() {
+        // Ensures that sending the BCrypt hash itself as the password does NOT authenticate
+        User user = new User();
+        user.setUsername("admin");
+        user.setPassword("$2a$10$hashedpassword");
+
+        when(userRepository.findById("admin")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("$2a$10$hashedpassword", "$2a$10$hashedpassword")).thenReturn(false);
+
+        LoginRequest request = new LoginRequest("admin", "$2a$10$hashedpassword");
+
+        assertThatThrownBy(() -> authService.login(request))
+                .isInstanceOf(BadCredentialsException.class)
+                .hasMessageContaining("Username or password is not correct!");
+    }
+
+    @Test
     void login_wrongPassword_throwsBadCredentials() {
         User user = new User();
         user.setUsername("admin");
         user.setPassword("correctPassword");
 
-        when(userRepository.findById("admin")).thenReturn(Optional.of(user));
-        when(passwordEncoder.matches("wrongPassword", "correctPassword")).thenReturn(false);
-
         LoginRequest request = new LoginRequest("admin", "wrongPassword");
+
+        when(userRepository.findById("admin")).thenReturn(Optional.of(user));
 
         assertThatThrownBy(() -> authService.login(request))
                 .isInstanceOf(BadCredentialsException.class)
